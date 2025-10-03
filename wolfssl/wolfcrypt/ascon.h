@@ -30,11 +30,13 @@
 extern "C" {
 #endif
 
+/*출력크기 정의*/
 #define ASCON_HASH256_SZ                               32
 
 #define ASCON_AEAD128_KEY_SZ                           16
 #define ASCON_AEAD128_NONCE_SZ                         16
 #define ASCON_AEAD128_TAG_SZ                           16
+
 
 typedef union AsconState {
 #ifdef WORD64_AVAILABLE
@@ -49,6 +51,13 @@ typedef struct wc_AsconHash256 {
     AsconState state;
     byte lastBlkSz;
 } wc_AsconHash256;
+
+typedef struct wc_AsconXof128 {
+    AsconState state;
+    byte lastBlkSz;
+    byte absorbing:1;
+    byte squeezing:1;
+} wc_AsconXof128;
 
 enum {
     ASCON_AEAD128_NOTSET  = 0,
@@ -79,12 +88,24 @@ WOLFSSL_API int wc_AsconHash256_Update(wc_AsconHash256* a, const byte* data,
                                        word32 dataSz);
 WOLFSSL_API int wc_AsconHash256_Final(wc_AsconHash256* a, byte* hash);
 
+
+/* AsconXof API */
+
+WOLFSSL_API wc_AsconXof128* wc_AsconXof128_New(void);
+WOLFSSL_API void wc_AsconXof128_Free(wc_AsconXof128* a);
+WOLFSSL_API int wc_AsconXof128_Init(wc_AsconXof128* a);
+WOLFSSL_API void wc_AsconXof128_Clear(wc_AsconXof128* a);
+WOLFSSL_API int wc_AsconXof128_Absorb(wc_AsconXof128* a, const byte* data,
+                                       word32 dataSz);
+WOLFSSL_API int wc_AsconXof128_Squeeze(wc_AsconXof128* a, byte* out,
+                                        word32 outSz);
+
+
+/* AsconAEAD API */
 WOLFSSL_API wc_AsconAEAD128* wc_AsconAEAD128_New(void);
 WOLFSSL_API void wc_AsconAEAD128_Free(wc_AsconAEAD128* a);
 WOLFSSL_API int wc_AsconAEAD128_Init(wc_AsconAEAD128* a);
 WOLFSSL_API void wc_AsconAEAD128_Clear(wc_AsconAEAD128* a);
-
-/* AsconAEAD API */
 
 WOLFSSL_API int wc_AsconAEAD128_SetKey(wc_AsconAEAD128* a, const byte* key);
 WOLFSSL_API int wc_AsconAEAD128_SetNonce(wc_AsconAEAD128* a, const byte* nonce);

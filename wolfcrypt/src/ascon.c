@@ -56,6 +56,12 @@
 #define ASCON_AEAD128_IV            0x00001000808C0001ULL
 #define ASCON_AEAD128_RATE                             16
 
+/* XOF128 관련 상수 추가 (파일 상단 define 섹션에) */
+#define ASCON_XOF128_RATE                               8
+#define ASCON_XOF128_ROUNDS                            12
+#define ASCON_XOF128_IV             0x0000080000CC0003ULL
+
+
 #define MAX_ROUNDS 12
 
 #ifndef WOLFSSL_ASCON_UNROLL
@@ -265,6 +271,128 @@ int wc_AsconHash256_Final(wc_AsconHash256* a, byte* hash)
 
     /* Clear state as soon as possible */
     wc_AsconHash256_Clear(a);
+    return 0;
+}
+/* AsconXOF API */
+wc_AsconXof128* wc_AsconXof128_New(void)
+{
+    wc_AsconXof128* ret = (wc_AsconXof128*)XMALLOC(sizeof(wc_AsconXof128),
+            NULL, DYNAMIC_TYPE_ASCON);
+    if (ret != NULL) {
+        if (wc_AsconXof128_Init(ret) != 0) {
+            wc_AsconXof128_Free(ret);
+            ret = NULL;
+        }
+    }
+    return ret;
+}
+
+void wc_AsconXof128_Free(wc_AsconXof128* a)
+{
+    if (a != NULL) {
+        wc_AsconXof128_Clear(a);
+        XFREE(a, NULL, DYNAMIC_TYPE_ASCON);
+    }
+}
+
+int wc_AsconXof128_Init(wc_AsconXof128* a)
+{
+    if (a == NULL)
+        return BAD_FUNC_ARG;
+
+    XMEMSET(a, 0, sizeof(*a));
+
+    /* Algorithm 6: Initialization phase */
+    a->state.s64[0] = ASCON_XOF128_IV;
+    permutation(&a->state, ASCON_XOF128_ROUNDS);
+    
+    a->absorbing = 1;
+    a->squeezing = 0;
+
+    return 0;
+}
+
+void wc_AsconXof128_Clear(wc_AsconXof128* a)
+{
+    if (a != NULL) {
+        ForceZero(a, sizeof(*a));
+    }
+}
+
+int wc_AsconXof128_Absorb(wc_AsconXof128* a, const byte* data, word32 dataSz)
+{
+    if (a == NULL || (data == NULL && dataSz != 0))
+        return BAD_FUNC_ARG;
+    
+    /* Cannot absorb after squeezing has started */
+    if (a->squeezing)
+        return BAD_STATE_E;
+
+    if (dataSz == 0)
+        return 0;
+
+    /* Process leftover block */
+    if (a->lastBlkSz != 0) {
+        word32 toProcess = min(ASCON_XOF128_RATE - a->lastBlkSz, dataSz);
+        xorbuf(a->state.s8 + a->lastBlkSz, data, toProcess);
+        data += toProcess;
+        dataSz -= toProcess;
+        a->lastBlkSz += toProcess;
+
+        if (a->lastBlkSz < ASCON_XOF128_RATE)
+            return 0;
+
+        permutation(&a->state, ASCON_XOF128_ROUNDS);
+        a->lastBlkSz = 0;
+    }
+
+    /* Algorithm 6: Absorbing phase */
+    while (dataSz >= ASCON_XOF128_RATE) {
+        xorbuf(a->state.s64, data, ASCON_XOF128_RATE);
+        permutation(&a->state, ASCON_XOF128_ROUNDS);
+        data += ASCON_XOF128_RATE;
+        dataSz -= ASCON_XOF128_RATE;
+    }
+
+    /* Store partial block */
+    xorbuf(a->state.s64, data, dataSz);
+    a->lastBlkSz = dataSz;
+
+    return 0;
+}
+
+int wc_AsconXof128_Squeeze(wc_AsconXof128* a, byte* out, word32 outSz)
+{
+    if (a == NULL || (out == NULL && outSz != 0))
+        return BAD_FUNC_ARG;
+
+    if (outSz == 0)
+        return 0;
+
+   /* Transition from absorbing to squeezing */
+    if (a->absorbing) {
+        /* Algorithm 6: Pad final message block */
+        a->state.s8[a->lastBlkSz] ^= 1;
+        permutation(&a->state, ASCON_XOF128_ROUNDS);
+        
+        a->absorbing = 0;
+        a->squeezing = 1;
+        a->lastBlkSz = 0;
+    }
+
+
+    /* Algorithm 6: Squeezing phase */
+    while (outSz > 0) {
+        word32 toExtract = min(ASCON_XOF128_RATE, outSz);
+        XMEMCPY(out, a->state.s64, toExtract);
+        out += toExtract;
+        outSz -= toExtract;
+
+        if (outSz > 0) {
+            permutation(&a->state, ASCON_XOF128_ROUNDS);
+        }
+    }
+
     return 0;
 }
 

@@ -513,7 +513,7 @@ int wc_MlKemKey_MakeKeyWithRandom(MlKemKey* key, const unsigned char* rand,
 #ifdef WOLFSSL_MLKEM_KYBER
         {
             /* Expand 32 bytes of random to 32. */
-            ret = MLKEM_HASH_G(&key->hash, d, WC_ML_KEM_SYM_SZ, NULL, 0, buf);
+            ret = MLKEM_HASH_G(&key->prf, d, WC_ML_KEM_SYM_SZ, NULL, 0, buf);
         }
 #endif
 #if defined(WOLFSSL_MLKEM_KYBER) && !defined(WOLFSSL_NO_ML_KEM)
@@ -525,7 +525,7 @@ int wc_MlKemKey_MakeKeyWithRandom(MlKemKey* key, const unsigned char* rand,
             /* Expand 33 bytes of random to 32.
              * Alg 13: Step 1: (rho,sigma) <- G(d||k)
              */
-            ret = MLKEM_HASH_G(&key->hash, d, WC_ML_KEM_SYM_SZ, buf, 1, buf);
+            ret = MLKEM_HASH_G(&key->prf, d, WC_ML_KEM_SYM_SZ, buf, 1, buf);
         }
 #endif
     }
@@ -1105,7 +1105,7 @@ int wc_MlKemKey_EncapsulateWithRandom(MlKemKey* key, unsigned char* c,
 #endif
 #ifdef WOLFSSL_MLKEM_KYBER
         {
-            ret = MLKEM_HASH_G(&key->hash, msg, WC_ML_KEM_SYM_SZ, key->h,
+            ret = MLKEM_HASH_G(&key->prf, msg, WC_ML_KEM_SYM_SZ, key->h,
                 WC_ML_KEM_SYM_SZ, kr);
         }
 #endif
@@ -1115,7 +1115,7 @@ int wc_MlKemKey_EncapsulateWithRandom(MlKemKey* key, unsigned char* c,
 #ifndef WOLFSSL_NO_ML_KEM
         {
             /* Step 1: (K,r) <- G(m||H(ek)) */
-            ret = MLKEM_HASH_G(&key->hash, m, WC_ML_KEM_SYM_SZ, key->h,
+            ret = MLKEM_HASH_G(&key->prf, m, WC_ML_KEM_SYM_SZ, key->h,
                 WC_ML_KEM_SYM_SZ, kr);
         }
 #endif
@@ -1453,7 +1453,7 @@ int wc_MlKemKey_Decapsulate(MlKemKey* key, unsigned char* ss,
     }
     if (ret == 0) {
         /* Hash message into seed buffer. */
-        ret = MLKEM_HASH_G(&key->hash, msg, WC_ML_KEM_SYM_SZ, key->h,
+        ret = MLKEM_HASH_G(&key->prf, msg, WC_ML_KEM_SYM_SZ, key->h,
             WC_ML_KEM_SYM_SZ, kr);
     }
     if (ret == 0) {

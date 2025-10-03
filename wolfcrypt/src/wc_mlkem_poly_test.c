@@ -3037,7 +3037,7 @@ int mlkem_prf_new(wc_AsconXof128* prf, void* heap, int devId) {
  * @param  [in, out]  shake256  SHAKE-256 object.
  */
 void mlkem_prf_free(wc_AsconXof128* prf) {
-    wc_AsconXof128_Clear(prf);
+    wc_AsconXof128_Free(prf);
 }
 
 #if !(defined(WOLFSSL_ARMASM) && defined(__aarch64__))
@@ -3151,22 +3151,30 @@ int mlkem_kdf(byte* seed, int seedLen, byte* out, int outLen)
  * @return  MEMORY_E when dynamic memory allocation failed.
  * @return  Other negative when a hash error occurred.
  */
-int mlkem_derive_secret(wc_AsconXof128* prf, const byte* z, const byte* ct,
+int mlkem_derive_secret(wc_Shake* shake256, const byte* z, const byte* ct,
     word32 ctSz, byte* ss)
 {
     int ret;
 
-    /* MLKemKey의 prf 컨텍스트를 재초기화하며 사용 */
-    ret = wc_AsconXof128_Init(prf);
+#ifdef USE_INTEL_SPEEDUP
+    XMEMCPY(shake256->t, z, WC_ML_KEM_SYM_SZ);
+    XMEMCPY(shake256->t, ct, WC_SHA3_256_COUNT * 8 - WC_ML_KEM_SYM_SZ);
+    shake256->i = WC_ML_KEM_SYM_SZ;
+    ct += WC_SHA3_256_COUNT * 8 - WC_ML_KEM_SYM_SZ;
+    ctSz -= WC_SHA3_256_COUNT * 8 - WC_ML_KEM_SYM_SZ;
+    ret = wc_Shake256_Update(shake256, ct, ctSz);
     if (ret == 0) {
-        ret = wc_AsconXof128_Absorb(prf, z, WC_ML_KEM_SYM_SZ);
+        ret = wc_Shake256_Final(shake256, ss, WC_ML_KEM_SS_SZ);
+    }
+#else
+    ret = wc_Shake256_Update(shake256, z, WC_ML_KEM_SYM_SZ);
+    if (ret == 0) {
+        ret = wc_Shake256_Update(shake256, ct, ctSz);
     }
     if (ret == 0) {
-        ret = wc_AsconXof128_Absorb(prf, ct, ctSz);
+        ret = wc_Shake256_Final(shake256, ss, WC_ML_KEM_SS_SZ);
     }
-    if (ret == 0) {
-        ret = wc_AsconXof128_Squeeze(prf, ss, WC_ML_KEM_SS_SZ);
-    }
+#endif
 
     return ret;
 }
